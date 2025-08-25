@@ -7,9 +7,14 @@ import {
   ShieldCheck, 
   Settings,
   Menu,
-  X
+  X,
+  User,
+  LogOut
 } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/components/ui/use-toast";
 
 type ActiveSection = 'hero' | 'upload' | 'dashboard' | 'gallery' | 'audit' | 'settings';
 
@@ -20,6 +25,24 @@ interface NavigationProps {
 
 const Navigation = ({ activeSection, onSectionChange }: NavigationProps) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user, signOut, loading } = useAuth();
+  const { toast } = useToast();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      toast({
+        title: "Signed out successfully",
+        description: "You have been logged out of your account.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to sign out. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const navigationItems = [
     { id: 'hero' as const, label: 'Home', icon: Home },
@@ -71,6 +94,35 @@ const Navigation = ({ activeSection, onSectionChange }: NavigationProps) => {
               })}
             </div>
 
+            {/* Auth Section */}
+            <div className="hidden md:flex items-center space-x-3">
+              {loading ? (
+                <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+              ) : user ? (
+                <div className="flex items-center space-x-3">
+                  <span className="text-sm text-muted-foreground">
+                    {user.email}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSignOut}
+                    className="flex items-center space-x-2"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Sign Out</span>
+                  </Button>
+                </div>
+              ) : (
+                <Link to="/auth">
+                  <Button variant="outline" size="sm" className="flex items-center space-x-2">
+                    <User className="w-4 h-4" />
+                    <span>Sign In</span>
+                  </Button>
+                </Link>
+              )}
+            </div>
+
             {/* Mobile Menu Button */}
             <Button
               variant="ghost"
@@ -117,6 +169,42 @@ const Navigation = ({ activeSection, onSectionChange }: NavigationProps) => {
                   </Button>
                 );
               })}
+              
+              {/* Mobile Auth Section */}
+              <div className="pt-4 border-t border-border space-y-2">
+                {loading ? (
+                  <div className="flex justify-center py-2">
+                    <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                  </div>
+                ) : user ? (
+                  <div className="space-y-2">
+                    <div className="px-3 py-2 text-sm text-muted-foreground">
+                      {user.email}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start flex items-center space-x-3"
+                      onClick={() => {
+                        handleSignOut();
+                        setIsMobileMenuOpen(false);
+                      }}
+                    >
+                      <LogOut className="h-5 w-5" />
+                      <span>Sign Out</span>
+                    </Button>
+                  </div>
+                ) : (
+                  <Link to="/auth" onClick={() => setIsMobileMenuOpen(false)}>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start flex items-center space-x-3"
+                    >
+                      <User className="h-5 w-5" />
+                      <span>Sign In</span>
+                    </Button>
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
         </div>
