@@ -1,12 +1,45 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useState } from "react";
+import HeroSection from "@/components/HeroSection";
+import Navigation from "@/components/Navigation";
+import ResumeUpload from "@/components/ResumeUpload";
+import JobSearchDashboard from "@/components/JobSearchDashboard";
+import ResumeGallery from "@/components/ResumeGallery";
+import AuditReports from "@/components/AuditReports";
+import SettingsPanel from "@/components/SettingsPanel";
+
+type ActiveSection = 'hero' | 'upload' | 'dashboard' | 'gallery' | 'audit' | 'settings';
 
 const Index = () => {
+  const [activeSection, setActiveSection] = useState<ActiveSection>('hero');
+
+  const renderActiveSection = () => {
+    switch (activeSection) {
+      case 'hero':
+        return <HeroSection onGetStarted={() => setActiveSection('upload')} />;
+      case 'upload':
+        return <ResumeUpload onSuccess={() => setActiveSection('dashboard')} />;
+      case 'dashboard':
+        return <JobSearchDashboard />;
+      case 'gallery':
+        return <ResumeGallery />;
+      case 'audit':
+        return <AuditReports />;
+      case 'settings':
+        return <SettingsPanel />;
+      default:
+        return <HeroSection onGetStarted={() => setActiveSection('upload')} />;
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen bg-background">
+      <Navigation 
+        activeSection={activeSection} 
+        onSectionChange={setActiveSection} 
+      />
+      <main className="transition-smooth">
+        {renderActiveSection()}
+      </main>
     </div>
   );
 };

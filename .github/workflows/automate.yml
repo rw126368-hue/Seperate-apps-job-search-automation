@@ -1,0 +1,128 @@
+name: SkillSync Job Search Automation
+
+on:
+  schedule:
+    # Run daily at 8:00 AM UTC (cron: "0 8 * * *")
+    - cron: "0 8 * * *"
+  workflow_dispatch: # Allow manual triggers
+  
+env:
+  PYTHON_VERSION: '3.9'
+
+jobs:
+  job-search-automation:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write # Needed to commit files to repository
+      actions: read
+      
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        
+    - name: Check for master resume
+      id: check-resume
+      run: |
+        if [ -d "resumes" ] && [ "$(ls -A resumes)" ]; then
+          echo "resume_exists=true" >> $GITHUB_OUTPUT
+          echo "Master resume found in resumes/ directory"
+        else
+          echo "resume_exists=false" >> $GITHUB_OUTPUT
+          echo "No master resume found. Please upload a resume first."
+        fi
+        
+    - name: Run job search automation
+      if: steps.check-resume.outputs.resume_exists == 'true'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
+        EMAIL_API_KEY: ${{ secrets.EMAIL_API_KEY }}
+        USER_EMAIL: ${{ secrets.USER_EMAIL }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+      run: |
+        python main.py
+        
+    - name: Commit generated files
+      if: steps.check-resume.outputs.resume_exists == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # Add any new files that were generated
+        git add jobs/ generated_resumes/ reports/ || true
+        
+        # Check if there are changes to commit
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "🤖 Automated job search and resume generation - $(date)"
+          git push
+        fi
+        
+    - name: Create automation summary
+      if: always()
+      run: |
+        echo "## SkillSync Automation Summary 🤖" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ steps.check-resume.outputs.resume_exists }}" == "true" ]; then
+          echo "✅ Master resume found and processed" >> $GITHUB_STEP_SUMMARY
+          
+          # Count generated files
+          job_count=$(find jobs -name "*.json" 2>/dev/null | wc -l || echo "0")
+          resume_count=$(find generated_resumes -name "*.pdf" 2>/dev/null | wc -l || echo "0") 
+          report_count=$(find reports -name "*.txt" 2>/dev/null | wc -l || echo "0")
+          
+          echo "📊 **Results:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Jobs found: ${job_count}" >> $GITHUB_STEP_SUMMARY
+          echo "- Resumes generated: ${resume_count}" >> $GITHUB_STEP_SUMMARY
+          echo "- Audit reports created: ${report_count}" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ No master resume found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Please upload your master resume using the web interface first." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "🕒 **Next run:** Tomorrow at 8:00 AM UTC" >> $GITHUB_STEP_SUMMARY
+        
+  cleanup-old-files:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' # Only run on scheduled events
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Clean up old files (keep last 30 days)
+      run: |
+        # Clean up old job listings (older than 30 days)
+        find jobs -name "*.json" -type f -mtime +30 -delete 2>/dev/null || true
+        
+        # Clean up old audit reports (older than 30 days)  
+        find reports -name "*.txt" -type f -mtime +30 -delete 2>/dev/null || true
+        
+        echo "Cleanup completed"
+        
+    - name: Commit cleanup changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action Cleanup"
+        
+        if ! git diff --quiet; then
+          git add -A
+          git commit -m "🧹 Automated cleanup of old files"
+          git push
+        fi
